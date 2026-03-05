@@ -49,24 +49,46 @@ def main():
             for t in slides_text:
                 f.write(t + "\n")
 
-        # --- Étape 3 : Copier toutes les images ---
-        data_dir = work_dir / "Data"
+        # --- Étape 3 : Copier toutes les images trouvées (méthode résiliente) ---
         images_list = []
-        if data_dir.exists():
-            for f in sorted(data_dir.iterdir()):
-                if f.is_file():
-                    shutil.copy(f, images_dir / f.name)
-                    images_list.append(f.name)  # liste d’images triée par ordre dans Data
+        # On va chercher toutes les images peu importe le dossier interne (Data, Index, Media, etc.)
+        allowed_extensions = {".png", ".jpg", ".jpeg", ".tiff", ".gif"}
+        
+        for file_path in work_dir.rglob("*"):
+            if file_path.is_file() and file_path.suffix.lower() in allowed_extensions:
+                # Éviter de recopier ce qui est déjà dans extracted_images
+                if "extracted_images" not in file_path.parts:
+                    dest_file = images_dir / file_path.name
+                    # S'assurer de ne pas écraser si noms identiques dans dossiers différents
+                    if dest_file.exists():
+                        dest_file = images_dir / f"{file_path.parent.name}_{file_path.name}"
+                    
+                    shutil.copy(file_path, dest_file)
+                    images_list.append(dest_file.name)
+        
+        # Trier la liste pour conserver un ordre pseudo-chronologique
+        images_list.sort()
 
-        # --- Étape 4 : Lire le PDF preview.pdf pour l’ordre ---
-        pdf_file = work_dir / "preview.pdf"
+        # --- Étape 4 : Déterminer le nombre de slides ---
         num_slides = len(slides_text)
-        if pdf_file.exists():
-            try:
-                reader = PdfReader(pdf_file)
-                num_slides = len(reader.pages)
-            except:
-                pass  # garder le nombre de slides extrait du XML
+        
+        # Essayer preview.pdf (ancien format) ou QuickLook/Preview.pdf (nouveau format)
+        for pdf_path in [work_dir / "preview.pdf", work_dir / "QuickLook" / "Preview.pdf"]:
+            if pdf_path.exists():
+                try:
+                    reader = PdfReader(pdf_path)
+                    num_slides = max(num_slides, len(reader.pages))
+                except Exception:
+                    pass
+
+        # Si on ne trouve ni texte ni PDF de preview, on crée au moins une slide par image extraite
+        if num_slides == 0 and images_list:
+            num_slides = len(images_list)
+
+        # Si le fichier est totalement illisible sans aucune info, on crée au moins 1 slide
+        if num_slides == 0:
+            print(f"❌ Impossible d'extraire des données (texte, images ou PDF de prévisualisation) depuis le fichier '{filename}'. Le fichier est trop corrompu ou dans un format illisible.")
+            return
 
         slide_order = list(range(1, num_slides + 1))
 

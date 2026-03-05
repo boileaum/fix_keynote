@@ -1,8 +1,9 @@
 set workDir to "_WORK_DIR_"
 set textFilePath to (POSIX file (workDir & "/extracted_text.txt"))
+set outFilePath to (POSIX file (workDir & "/_FILENAME__reconstructed_sain.key"))
 set slideTexts to {}
 try
-    set slideTexts to paragraphs of (read textFilePath as Â«class utf8Â»)
+    set slideTexts to paragraphs of (read textFilePath as Çclass utf8È)
 end try
 
 set imageFolder to workDir & "/extracted_images/"
@@ -11,40 +12,72 @@ set allNotes to _APPLESCRIPT_NOTES_
 
 tell application "Keynote"
     activate
-    set themeName to "Blanc basique"
+    set themeName to "Basic White"
     try
         set newDoc to make new document with properties {document theme:theme themeName}
     on error
-        -- Si "Blanc basique" ne marche pas, essaye de prendre le premier thÃ¨me dispo
-        set newDoc to make new document
+        -- If "Basic White" fails (e.g. non-english system), try fallback generic name or none
+        try
+            set newDoc to make new document with properties {document theme:theme "Blanc basique"}
+        on error
+            set newDoc to make new document
+        end try
     end try
     set imgIndex to 1
 
     repeat with i in {_SLIDE_ORDER_}
-        set slideText to item i of slideTexts
-        set newSlide to make new slide at end of slides of newDoc with properties {slide layout:"Title & Bullets"}
-        tell newSlide
-            set the object text of default body item to slideText
-        end tell
+        set slideText to ""
+        try
+            if (count of slideTexts) ³ i then
+                set slideText to item i of slideTexts
+            end if
+        end try
 
-        -- Ajouter note si elle existe
+        set newSlide to make new slide at end of slides of newDoc
+        
+        if slideText is not "" then
+            try
+                tell newSlide
+                    set the object text of default body item to slideText
+                end tell
+            end try
+        end if
+
+        -- Add note if it exists
         try
             set noteText to item i of allNotes
             if noteText is not "" then set presenter notes of newSlide to noteText
         end try
 
-        -- Ajouter toutes les images disponibles
-        repeat while imgIndex â‰¤ count of imageFiles
+        -- Add available images
+        set imagesAdded to 0
+        repeat while imgIndex ² count of imageFiles
             set imgName to item imgIndex of imageFiles
-            set imgPath to (POSIX file (imageFolder & imgName))
-            tell newSlide
-                make new image with properties {file:imgPath}
-            end tell
+            set imgPathStr to imageFolder & imgName
+            
+            try
+                -- Direct file object creation via StandardAdditions, reliable way to build paths into Keynote
+                set theFile to POSIX file imgPathStr as alias
+                
+                tell newSlide
+                    make new image with properties {file:theFile}
+                end tell
+                set imagesAdded to imagesAdded + 1
+            on error errMsg
+                -- Ignore silent failures on specific images
+            end try
+            
             set imgIndex to imgIndex + 1
-            exit repeat -- une image par slide pour Ã©viter surcharge
+            if imagesAdded ³ 1 then exit repeat -- One image successfully added per slide
         end repeat
     end repeat
 
-    set savePath to (POSIX file (workDir & "/_FILENAME__reconstructed_sain.key"))
-    save newDoc in savePath
+    -- Remove the default blank slide that Keynote creates initially
+    try
+        if (count of slides of newDoc) > (count of {_SLIDE_ORDER_}) then
+            delete slide 1 of newDoc
+        end if
+    end try
+
+    save newDoc in outFilePath
 end tell
