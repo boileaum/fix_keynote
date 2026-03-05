@@ -3,18 +3,21 @@ import xml.etree.ElementTree as ET
 import shutil
 import subprocess
 import sys
+import os
 from pathlib import Path
 from PyPDF2 import PdfReader
 
 def main():
     # --- Configuration ---
-    # Arguments : un fichier .key ou aucun (traite tous les .key du dossier)
+    # Arguments: a .key file or none (processes all .key files in the folder)
     if len(sys.argv) > 1:
-        key_files = [Path(sys.argv[1])]
+        key_files = [Path(arg) for arg in sys.argv[1:] if arg.lower().endswith(".key")]
+        if not key_files:
+            return
     else:
         folder = Path.home() / "Desktop" / "fix_keynote"
         if not folder.exists():
-            print(f"Le dossier {folder} n'existe pas.")
+            print(f"Directory {folder} does not exist.")
             return
         key_files = list(folder.glob("*.key"))
 
@@ -25,18 +28,18 @@ def main():
         images_dir = work_dir / "extracted_images"
         images_dir.mkdir(parents=True, exist_ok=True)
 
-        # --- Étape 1 : Extraire le .key ---
+        # --- Step 1: Extract the .key file ---
         with zipfile.ZipFile(key_file, "r") as zip_ref:
             zip_ref.extractall(work_dir)
 
-        # --- Étape 2 : Extraire texte et notes depuis index.apxl ---
+        # --- Step 2: Extract text and notes from index.apxl ---
         index_file = work_dir / "index.apxl"
         slides_text = []
         slides_notes = []
         if index_file.exists():
             tree = ET.parse(index_file)
             root = tree.getroot()
-            # Texte
+            # Text
             for sf in root.iter("sf"):
                 if sf.text:
                     slides_text.append(sf.text.strip())
@@ -49,30 +52,30 @@ def main():
             for t in slides_text:
                 f.write(t + "\n")
 
-        # --- Étape 3 : Copier toutes les images trouvées (méthode résiliente) ---
+        # --- Step 3: Copy all found images (resilient method) ---
         images_list = []
-        # On va chercher toutes les images peu importe le dossier interne (Data, Index, Media, etc.)
+        # Search for all images regardless of internal folder (Data, Index, Media, etc.)
         allowed_extensions = {".png", ".jpg", ".jpeg", ".tiff", ".gif"}
         
         for file_path in work_dir.rglob("*"):
             if file_path.is_file() and file_path.suffix.lower() in allowed_extensions:
-                # Éviter de recopier ce qui est déjà dans extracted_images
+                # Avoid copying what is already in extracted_images
                 if "extracted_images" not in file_path.parts:
                     dest_file = images_dir / file_path.name
-                    # S'assurer de ne pas écraser si noms identiques dans dossiers différents
+                    # Make sure not to overwrite if identical names exist in different folders
                     if dest_file.exists():
                         dest_file = images_dir / f"{file_path.parent.name}_{file_path.name}"
                     
                     shutil.copy(file_path, dest_file)
                     images_list.append(dest_file.name)
         
-        # Trier la liste pour conserver un ordre pseudo-chronologique
+        # Sort list to maintain pseudo-chronological order
         images_list.sort()
 
-        # --- Étape 4 : Déterminer le nombre de slides ---
+        # --- Step 4: Determine the number of slides ---
         num_slides = len(slides_text)
         
-        # Essayer preview.pdf (ancien format) ou QuickLook/Preview.pdf (nouveau format)
+        # Try preview.pdf (old format) or QuickLook/Preview.pdf (new format)
         for pdf_path in [work_dir / "preview.pdf", work_dir / "QuickLook" / "Preview.pdf"]:
             if pdf_path.exists():
                 try:
@@ -81,29 +84,33 @@ def main():
                 except Exception:
                     pass
 
-        # Si on ne trouve ni texte ni PDF de preview, on crée au moins une slide par image extraite
+        # If no text or preview PDF is found, create at least one slide per extracted image
         if num_slides == 0 and images_list:
             num_slides = len(images_list)
 
-        # Si le fichier est totalement illisible sans aucune info, on crée au moins 1 slide
+        # If the file is completely unreadable with no info, create at least 1 slide
         if num_slides == 0:
-            print(f"❌ Impossible d'extraire des données (texte, images ou PDF de prévisualisation) depuis le fichier '{filename}'. Le fichier est trop corrompu ou dans un format illisible.")
+            print(f"❌ Cannot extract data (text, images, or preview PDF) from file '{filename}'. The file is too corrupted or in an unreadable format.")
             return
 
         slide_order = list(range(1, num_slides + 1))
 
-        # Préparer les notes pour AppleScript (en formatant correctement les échappements)
+        # Prepare notes for AppleScript (properly formatting escapes)
         safe_notes = []
         for i in range(num_slides):
             n = slides_notes[i] if i < len(slides_notes) else ""
-            # AppleScript utilise \r pour les retours à la ligne
+            # AppleScript uses \r for newlines
             safe_n = n.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\r")
             safe_notes.append(f'"{safe_n}"')
         applescript_notes = "{" + ", ".join(safe_notes) + "}"
 
-        # --- Étape 5 : Générer AppleScript ---
-        # On associe images automatiquement par position
-        template_path = Path(__file__).parent / "rebuild_template.applescript"
+        # --- Step 5: Generate AppleScript ---
+        # Automatically associate images by position
+        if "RESOURCEPATH" in os.environ:
+            template_path = Path(os.environ["RESOURCEPATH"]) / "rebuild_template.applescript"
+        else:
+            template_path = Path(__file__).parent / "rebuild_template.applescript"
+
         with open(template_path, "r", encoding="utf-8") as tpl_file:
             template_content = tpl_file.read()
 
@@ -118,9 +125,9 @@ def main():
         with open(applescript_file, "w", encoding="utf-8") as f:
             f.write(applescript_code)
 
-        # --- Étape 6 : Exécuter AppleScript ---
+        # --- Step 6: Execute AppleScript ---
         subprocess.run(["osascript", str(applescript_file)])
-        print(f"Présentation recréée : {work_dir}/{filename}_reconstructed_sain.key")
+        print(f"Presentation recreated: {work_dir}/{filename}_reconstructed.key")
 
 if __name__ == "__main__":
     main()

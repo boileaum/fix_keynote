@@ -1,6 +1,6 @@
 set workDir to "_WORK_DIR_"
 set textFilePath to (POSIX file (workDir & "/extracted_text.txt"))
-set outFilePath to (POSIX file (workDir & "/_FILENAME__reconstructed_sain.key"))
+set outFilePath to (POSIX file (workDir & "/_FILENAME__reconstructed.key"))
 set slideTexts to {}
 try
     set slideTexts to paragraphs of (read textFilePath as Çclass utf8È)
