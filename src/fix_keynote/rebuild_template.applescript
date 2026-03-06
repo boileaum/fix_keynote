@@ -3,7 +3,7 @@ set textFilePath to (POSIX file (workDir & "/extracted_text.txt"))
 set outFilePath to (POSIX file (workDir & "/_FILENAME__reconstructed.key"))
 set slideTexts to {}
 try
-    set slideTexts to paragraphs of (read textFilePath as Çclass utf8È)
+    set slideTexts to paragraphs of (read textFilePath as "utf8")
 end try
 
 set imageFolder to workDir & "/extracted_images/"
@@ -28,19 +28,31 @@ tell application "Keynote"
     repeat with i in {_SLIDE_ORDER_}
         set slideText to ""
         try
-            if (count of slideTexts) ³ i then
+            if (count of slideTexts) >= i then
                 set slideText to item i of slideTexts
             end if
         end try
 
-        set newSlide to make new slide at end of slides of newDoc
+        try
+            set newSlide to make new slide at end of slides of newDoc with properties {base slide:master slide "Blank" of newDoc}
+        on error
+            try
+                set newSlide to make new slide at end of slides of newDoc with properties {base slide:master slide "Vierge" of newDoc}
+            on error
+                set newSlide to make new slide at end of slides of newDoc
+            end try
+        end try
         
         if slideText is not "" then
-            try
-                tell newSlide
+            tell newSlide
+                try
+                    -- If there happens to be a default text box
                     set the object text of default body item to slideText
-                end tell
-            end try
+                on error
+                    -- Otherwise we insert our own text box (e.g., on Blank/Vierge slides)
+                    make new text item with properties {object text:slideText}
+                end try
+            end tell
         end if
 
         -- Add note if it exists
@@ -51,7 +63,7 @@ tell application "Keynote"
 
         -- Add available images
         set imagesAdded to 0
-        repeat while imgIndex ² count of imageFiles
+        repeat while imgIndex <= count of imageFiles
             set imgName to item imgIndex of imageFiles
             set imgPathStr to imageFolder & imgName
             
@@ -68,7 +80,7 @@ tell application "Keynote"
             end try
             
             set imgIndex to imgIndex + 1
-            if imagesAdded ³ 1 then exit repeat -- One image successfully added per slide
+            if imagesAdded >= 1 then exit repeat -- One image successfully added per slide
         end repeat
     end repeat
 

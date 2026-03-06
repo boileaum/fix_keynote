@@ -7,17 +7,29 @@ import os
 from pathlib import Path
 from PyPDF2 import PdfReader
 
+
+def show_popup(message, is_error=False):
+    """Helper to display a native macOS popup (useful when running as App)"""
+    title = "FixKeynote Error" if is_error else "FixKeynote"
+    # Ensure double quotes are escaped for AppleScript
+    safe_msg = message.replace('"', '\\"')
+    apple_script = f'display alert "{title}" message "{safe_msg}"'
+    subprocess.run(["osascript", "-e", apple_script])
+    print(message)
+
+
 def main():
     # --- Configuration ---
     # Arguments: a .key file or none (processes all .key files in the folder)
     if len(sys.argv) > 1:
         key_files = [Path(arg) for arg in sys.argv[1:] if arg.lower().endswith(".key")]
         if not key_files:
+            show_popup("No .key files found to process.", is_error=True)
             return
     else:
         folder = Path.home() / "Desktop" / "fix_keynote"
         if not folder.exists():
-            print(f"Directory {folder} does not exist.")
+            show_popup(f"Directory {folder} does not exist.", is_error=True)
             return
         key_files = list(folder.glob("*.key"))
 
@@ -56,7 +68,7 @@ def main():
         images_list = []
         # Search for all images regardless of internal folder (Data, Index, Media, etc.)
         allowed_extensions = {".png", ".jpg", ".jpeg", ".tiff", ".gif"}
-        
+
         for file_path in work_dir.rglob("*"):
             if file_path.is_file() and file_path.suffix.lower() in allowed_extensions:
                 # Avoid copying what is already in extracted_images
@@ -64,19 +76,24 @@ def main():
                     dest_file = images_dir / file_path.name
                     # Make sure not to overwrite if identical names exist in different folders
                     if dest_file.exists():
-                        dest_file = images_dir / f"{file_path.parent.name}_{file_path.name}"
-                    
+                        dest_file = (
+                            images_dir / f"{file_path.parent.name}_{file_path.name}"
+                        )
+
                     shutil.copy(file_path, dest_file)
                     images_list.append(dest_file.name)
-        
+
         # Sort list to maintain pseudo-chronological order
         images_list.sort()
 
         # --- Step 4: Determine the number of slides ---
         num_slides = len(slides_text)
-        
+
         # Try preview.pdf (old format) or QuickLook/Preview.pdf (new format)
-        for pdf_path in [work_dir / "preview.pdf", work_dir / "QuickLook" / "Preview.pdf"]:
+        for pdf_path in [
+            work_dir / "preview.pdf",
+            work_dir / "QuickLook" / "Preview.pdf",
+        ]:
             if pdf_path.exists():
                 try:
                     reader = PdfReader(pdf_path)
@@ -90,7 +107,10 @@ def main():
 
         # If the file is completely unreadable with no info, create at least 1 slide
         if num_slides == 0:
-            print(f"❌ Cannot extract data (text, images, or preview PDF) from file '{filename}'. The file is too corrupted or in an unreadable format.")
+            show_popup(
+                f"❌ Cannot extract data (text, images, or preview PDF) from file '{filename}'. The file is too corrupted or in an unreadable format.",
+                is_error=True,
+            )
             return
 
         slide_order = list(range(1, num_slides + 1))
@@ -106,12 +126,19 @@ def main():
 
         # --- Step 5: Generate AppleScript ---
         # Automatically associate images by position
-        if "RESOURCEPATH" in os.environ:
-            template_path = Path(os.environ["RESOURCEPATH"]) / "rebuild_template.applescript"
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            # Running in a PyInstaller bundle
+            template_path = Path(sys._MEIPASS) / "rebuild_template.applescript"
+        elif "RESOURCEPATH" in os.environ:
+            # Running in a py2app bundle
+            template_path = (
+                Path(os.environ["RESOURCEPATH"]) / "rebuild_template.applescript"
+            )
         else:
+            # Running natively (CLI)
             template_path = Path(__file__).parent / "rebuild_template.applescript"
 
-        with open(template_path, "r", encoding="utf-8") as tpl_file:
+        with open(template_path, "r", encoding="utf-8", errors="replace") as tpl_file:
             template_content = tpl_file.read()
 
         applescript_code = (
@@ -127,7 +154,17 @@ def main():
 
         # --- Step 6: Execute AppleScript ---
         subprocess.run(["osascript", str(applescript_file)])
-        print(f"Presentation recreated: {work_dir}/{filename}_reconstructed.key")
+        
+        reconstructed_file = work_dir / f"{filename}_reconstructed.key"
+        # Reveal the reconstructed file in Finder
+        if reconstructed_file.exists():
+            subprocess.run(["open", "-R", str(reconstructed_file)])
+        else:
+            # Fallback to opening the folder if the specific file wasn't found for some reason
+            subprocess.run(["open", str(work_dir)])
+            
+        show_popup(f"Presentation recreated: {reconstructed_file}")
+
 
 if __name__ == "__main__":
     main()
