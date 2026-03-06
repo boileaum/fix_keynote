@@ -1,7 +1,7 @@
 [project]
 name = "fix-keynote"
 version = "0.1.0"
-description = "Add your description here"
+description = "A tool to recover and reconstruct corrupted Apple Keynote presentation files."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -14,3 +14,8 @@ fix_keynote = "fix_keynote.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+build = [
+    "pyinstaller>=6.19.0",
+]
