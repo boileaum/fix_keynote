@@ -1,4 +1,4 @@
-name: Build and Release macOS
+name: Build and Release
 
 on:
   push:
@@ -7,9 +7,29 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
-  release:
+  release-pypi:
+    name: Build & Publish to PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        run: uv python install 3.13
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  release-macos:
     name: Build & Release DMG
     runs-on: macos-latest
 
