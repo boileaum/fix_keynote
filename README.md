@@ -12,7 +12,7 @@ There are two main ways to use this tool: as a standalone macOS application or a
 
 If you have the compiled Application bundle:
 
-    Drop your corrupted `.key` files into a folder named `fix_keynote` on your Desktop (`~/Desktop/fix_keynote/`). Then, simply double-click on `FixKeynote.app`. The application will automatically detect all `.key` files in that folder, extract their data, and reconstruct them next to the original files.
+Drop your corrupted `.key` files into a folder named `fix_keynote` on your Desktop (`~/Desktop/fix_keynote/`). Then, simply double-click on `FixKeynote.app`. The application will automatically detect all `.key` files in that folder, extract their data, and reconstruct them next to the original files.
 
 ### 2. Using the Command Line (CLI)
 
@@ -23,7 +23,7 @@ If you are running the script directly via Python or `uv`:
 uvx fix_keynote /path/to/corrupted_presentation.key
 
 # Or process everything in ~/Desktop/fix_keynote/
-uvx fix_keynote /path/to/corrupted_presentation.key
+uvx fix_keynote ~/Desktop/fix_keynote/
 ```
 
 ## How to Build the macOS App
@@ -33,6 +33,7 @@ To build a standalone macOS application bundle (`.app`) so you can easily move i
 ### Prerequisites
 
 Make sure you have `uv` installed, then install the required build dependencies:
+
 ```bash
 uv sync --group build
 ```
@@ -40,6 +41,7 @@ uv sync --group build
 ### Build Command
 
 You can easily build the `FixKeynote.app` bundle and copy it to your Desktop using the included Makefile. Run the following command at the root of the project:
+
 ```bash
 make build
 ```
@@ -49,6 +51,7 @@ make build
 Once the process is complete, your compiled application will be automatically copied to your Desktop (`~/Desktop/FixKeynote.app`).
 
 You can clean the build artifacts later by running:
+
 ```bash
 make clean
 ```
