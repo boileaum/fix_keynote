@@ -1,0 +1,55 @@
+name: Build and Release macOS
+
+on:
+  push:
+    tags:
+      - "v*.*.*"  # Will trigger on tags like v0.1.0, v1.0.2...
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --group build
+
+      - name: Build macOS App
+        run: |
+          uv run pyinstaller --windowed --name "FixKeynote" \
+            --add-data "src/fix_keynote/rebuild_template.applescript:." \
+            src/fix_keynote/cli.py -y
+
+      - name: Create DMG file
+        run: |
+          # Create a temporary assembly folder
+          mkdir -p dmg_folder
+          
+          # Copy the built application
+          cp -R "dist/FixKeynote.app" dmg_folder/
+          
+          # Create a shortcut to /Applications (for drag-and-drop installation)
+          ln -s /Applications dmg_folder/Applications
+          
+          # Build the DMG volume
+          hdiutil create -volname "FixKeynote" -srcfolder dmg_folder -ov -format UDZO "dist/FixKeynote.dmg"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/FixKeynote.dmg
+          generate_release_notes: true
