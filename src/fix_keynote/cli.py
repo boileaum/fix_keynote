@@ -29,9 +29,20 @@ def main():
     else:
         folder = Path.home() / "Desktop" / "fix_keynote"
         if not folder.exists():
-            show_popup(f"Directory {folder} does not exist.", is_error=True)
+            folder.mkdir(parents=True, exist_ok=True)
+            show_popup(
+                f"Le dossier '{folder.name}' a été créé sur votre Bureau.\n\n"
+                "Veuillez y glisser vos fichiers .key corrompus, puis relancer l'application FixKeynote."
+            )
             return
+        
         key_files = list(folder.glob("*.key"))
+        if not key_files:
+            show_popup(
+                f"Aucun fichier .key trouvé dans le dossier '{folder.name}'.\n\n"
+                "Veuillez y glisser vos fichiers .key corrompus, puis relancer l'application."
+            )
+            return
 
     for key_file in key_files:
         filename = key_file.stem
