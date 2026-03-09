@@ -5,10 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-03-09
 
 ### Added
 
+- Automatic creation of the `~/Desktop/fix_keynote` directory on app startup with an informative popup guiding the user.
+- User-friendly native alert if the `fix_keynote` folder is empty, instructing them to add corrupted files.
 - Project information in the `pyproject.toml` file.
 
 ## [0.2.0] - 2026-03-06
